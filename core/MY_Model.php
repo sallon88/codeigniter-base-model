@@ -463,7 +463,7 @@ class MY_Model extends CI_Model
             if (is_string($value))
             {
                 $relationship = $value;
-                $options = array('foreign_key' => $value . '_id', 'model' => $this->model_name($value));
+                $options = array('foreign_key' => $value . '_id', 'model' => $this->_model_name($value));
             }
             else
             {
@@ -491,7 +491,7 @@ class MY_Model extends CI_Model
             if (is_string($value))
             {
                 $relationship = $value;
-                $options = array('foreign_key' => singular($this->_table) . '_id', 'model' => $this->model_name(singular($value)));
+                $options = array('foreign_key' => singular($this->_table) . '_id', 'model' => $this->_model_name(singular($value)));
             }
             else
             {
@@ -861,7 +861,18 @@ class MY_Model extends CI_Model
     {
         if ($this->_table == NULL)
         {
-            $this->_table = plural(preg_replace('/(_m|_model)?$/', '', strtolower(get_class($this))));
+			$regex = '/^'.str_replace('%', '(?P<name>.+)', $this->model_string).'$/';
+			$model_name = get_class($this);
+			if (preg_match($regex, $model_name, $matches))
+			{
+				$table_name = $matches['name'];
+			}
+			else
+			{
+				$table_name = $model_name;
+			}
+
+			$this->table = plural(strtolower($table_name));
         }
     }
 
