@@ -463,13 +463,16 @@ class MY_Model extends CI_Model
             if (is_string($value))
             {
                 $relationship = $value;
-                $options = array('foreign_key' => $value . '_id', 'model' => $this->_model_name($value));
+                $options = array();
             }
             else
             {
                 $relationship = $key;
                 $options = $value;
             }
+
+			$default_options = array('foreign_key' => $relationship . '_id', 'model' => $this->_model_name($relationship));
+			$options = array_merge($default_options, $options);
 
             if (in_array($relationship, $this->_with))
             {
@@ -491,13 +494,16 @@ class MY_Model extends CI_Model
             if (is_string($value))
             {
                 $relationship = $value;
-                $options = array('foreign_key' => singular($this->_table) . '_id', 'model' => $this->_model_name(singular($value)));
+                $options = array();
             }
             else
             {
                 $relationship = $key;
                 $options = $value;
             }
+
+			$default_options = array('foreign_key' => singular($this->_table) . '_id', 'model' => $this->_model_name(singular($relationship)));
+			$options = array_merge($default_options, $options);
 
             if (in_array($relationship, $this->_with))
             {
