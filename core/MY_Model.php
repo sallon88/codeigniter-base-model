@@ -34,6 +34,12 @@ class MY_Model extends CI_Model
     protected $primary_key = 'id';
 
     /**
+     * A formatting string for the model autoloading feature.
+     * The percent symbol (%) will be replaced with the model name.
+     */
+    protected $model_string = '%_model';
+
+    /**
      * Support for soft deletes and this model's 'deleted' key
      */
     protected $soft_delete = FALSE;
@@ -457,7 +463,7 @@ class MY_Model extends CI_Model
             if (is_string($value))
             {
                 $relationship = $value;
-                $options = array( 'primary_key' => $value . '_id', 'model' => $value . '_model' );
+                $options = array('foreign_key' => $value . '_id', 'model' => $this->model_name($value));
             }
             else
             {
@@ -467,15 +473,15 @@ class MY_Model extends CI_Model
 
             if (in_array($relationship, $this->_with))
             {
-                $this->load->model($options['model'], $relationship . '_model');
+                $this->load->model($options['model']);
 
                 if (is_object($row))
                 {
-                    $row->{$relationship} = $this->{$relationship . '_model'}->get($row->{$options['primary_key']});
+                    $row->{$relationship} = $this->{$options['model']}->get($row->{$options['foreign_key']});
                 }
                 else
                 {
-                    $row[$relationship] = $this->{$relationship . '_model'}->get($row[$options['primary_key']]);
+                    $row[$relationship] = $this->{$options['model']}->get($row[$options['foreign_key']]);
                 }
             }
         }
@@ -485,7 +491,7 @@ class MY_Model extends CI_Model
             if (is_string($value))
             {
                 $relationship = $value;
-                $options = array( 'primary_key' => singular($this->_table) . '_id', 'model' => singular($value) . '_model' );
+                $options = array('foreign_key' => singular($this->_table) . '_id', 'model' => $this->model_name(singular($value)));
             }
             else
             {
@@ -495,15 +501,15 @@ class MY_Model extends CI_Model
 
             if (in_array($relationship, $this->_with))
             {
-                $this->load->model($options['model'], $relationship . '_model');
+                $this->load->model($options['model']);
 
                 if (is_object($row))
                 {
-                    $row->{$relationship} = $this->{$relationship . '_model'}->get_many_by($options['primary_key'], $row->{$this->primary_key});
+                    $row->{$relationship} = $this->{$options['model']}->get_many_by($options['foreign_key'], $row->{$this->primary_key});
                 }
                 else
                 {
-                    $row[$relationship] = $this->{$relationship . '_model'}->get_many_by($options['primary_key'], $row[$this->primary_key]);
+                    $row[$relationship] = $this->{$options['model']}->get_many_by($options['foreign_key'], $row[$this->primary_key]);
                 }
             }
         }
@@ -889,5 +895,14 @@ class MY_Model extends CI_Model
     {
         $method = ($multi) ? 'result' : 'row';
         return $this->_temporary_return_type == 'array' ? $method . '_array' : $method;
+    }
+
+    /**
+     * Returns the loadable model name based on
+     * the model formatting string
+     */
+    protected function _model_name($model)
+    {
+        return str_replace('%', $model, $this->model_string);
     }
 }
