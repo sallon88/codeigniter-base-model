@@ -107,6 +107,13 @@ class MY_Model extends CI_Model
     {
         parent::__construct();
 
+		// when loaded as a instance of MY_Model, don't proceed table initiation 
+		// this happened when first called load_class('Model','core');
+		if (get_class($this) == get_class())
+		{
+			return;
+		}
+
         $this->load->helper('inflector');
 
         $this->_fetch_table();
@@ -878,7 +885,7 @@ class MY_Model extends CI_Model
 				$table_name = $model_name;
 			}
 
-			$this->table = plural(strtolower($table_name));
+			$this->_table = plural(strtolower($table_name));
         }
     }
 
