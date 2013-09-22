@@ -224,8 +224,8 @@ To change this, use the `primary_key` value when configuring:
 
     class Post_model extends MY_Model
     {
-        public $belongs_to = array( 'author' => array( 'primary_key' => 'post_author_id' ) );
-        public $has_many = array( 'comments' => array( 'primary_key' => 'parent_post_id' ) );
+        public $belongs_to = array( 'author' => array( 'foreign_key' => 'post_author_id' ) );
+        public $has_many = array( 'comments' => array( 'foreign_key' => 'parent_post_id' ) );
     }
 
 Arrays vs Objects
