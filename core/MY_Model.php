@@ -39,6 +39,8 @@ class MY_Model extends CI_Model
      */
     protected $model_string = '%_model';
 
+	protected $record_timestamps = TRUE;
+
     /**
      * Support for soft deletes and this model's 'deleted' key
      */
@@ -80,7 +82,7 @@ class MY_Model extends CI_Model
      * An array of validation rules. This needs to be the same format
      * as validation rules passed to the Form_validation library.
      */
-    protected $validate = array();
+    protected $validates = array();
 
     /**
      * Optionally skip the validation. Used in conjunction with
@@ -121,6 +123,12 @@ class MY_Model extends CI_Model
 
         array_unshift($this->before_create, 'protect_attributes');
         array_unshift($this->before_update, 'protect_attributes');
+
+		if ($this->record_timestamps)
+		{
+			array_push($this->before_create, 'created_at', 'updated_at');
+			array_push($this->before_update, 'updated_at');
+		}
 
         $this->_temporary_return_type = $this->return_type;
     }
@@ -680,11 +688,11 @@ class MY_Model extends CI_Model
     {
         if (is_object($row))
         {
-            $row->created_at = date('Y-m-d H:i:s');
+            $row->created_at = time();
         }
         else
         {
-            $row['created_at'] = date('Y-m-d H:i:s');
+            $row['created_at'] = time();
         }
 
         return $row;
@@ -694,11 +702,11 @@ class MY_Model extends CI_Model
     {
         if (is_object($row))
         {
-            $row->updated_at = date('Y-m-d H:i:s');
+            $row->updated_at = time();
         }
         else
         {
-            $row['updated_at'] = date('Y-m-d H:i:s');
+            $row['updated_at'] = time();
         }
 
         return $row;
@@ -827,7 +835,7 @@ class MY_Model extends CI_Model
             return $data;
         }
         
-        if(!empty($this->validate))
+        if(!empty($this->validates))
         {
             foreach($data as $key => $val)
             {
@@ -836,9 +844,9 @@ class MY_Model extends CI_Model
 
             $this->load->library('form_validation');
 
-            if(is_array($this->validate))
+            if(is_array($this->validates))
             {
-                $this->form_validation->set_rules($this->validate);
+                $this->form_validation->set_rules($this->validates);
 
                 if ($this->form_validation->run() === TRUE)
                 {
@@ -851,7 +859,7 @@ class MY_Model extends CI_Model
             }
             else
             {
-                if ($this->form_validation->run($this->validate) === TRUE)
+                if ($this->form_validation->run($this->validates) === TRUE)
                 {
                     return $data;
                 }

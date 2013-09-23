@@ -119,7 +119,7 @@ You can enable validation by setting the `$validate` instance to the usual form 
 
     class User_model extends MY_Model
     {
-        public $validate = array(
+        public $validates = array(
             array( 'field' => 'email', 
                    'label' => 'email',
                    'rules' => 'required|valid_email|is_unique[users.email]' ),
