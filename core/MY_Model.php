@@ -18,14 +18,15 @@ class MY_Model extends CI_Model
      * This model's default database table. Automatically
      * guessed by pluralising the model name.
      */
-    protected $_table;
+    protected $table;
     
     /**
      * The database connection object. Will be set to the default
      * connection. This allows individual models to use different DBs 
      * without overwriting CI's global $this->db connection.
      */
-    public $_database;
+	protected $db_group;
+    public $database;
 
     /**
      * This model's default primary key or unique identifier.
@@ -119,7 +120,33 @@ class MY_Model extends CI_Model
         $this->load->helper('inflector');
 
         $this->_fetch_table();
-        $this->_database = $this->db;
+
+		if ($this->db_group)
+		{
+			//when loaded another db_group, the original connection will broke
+			//see http://stackoverflow.com/questions/634291/codeigniter-using-multiple-databases
+			
+			/*
+			To fix the problem change the simple_query function in /system/database/DB_driver.php:
+
+			function simple_query($sql)
+			{
+				if ( ! $this->conn_id)
+				{
+					$this->initialize();
+				}
+
+				$this->db_select(); //<-----------------  Added this line
+				return $this->_execute($sql);
+			}
+			*/
+
+			$this->database = DB($this->db_group);
+		}
+		else
+		{
+			$this->database = $this->db;
+		}
 
         array_unshift($this->before_create, 'protect_attributes');
         array_unshift($this->before_update, 'protect_attributes');
@@ -147,7 +174,7 @@ class MY_Model extends CI_Model
 
     /**
      * Fetch a single record based on an arbitrary WHERE call. Can be
-     * any valid value to $this->_database->where().
+     * any valid value to $this->database->where().
      */
     public function get_by()
     {
@@ -155,14 +182,14 @@ class MY_Model extends CI_Model
         
         if ($this->soft_delete && $this->_temporary_with_deleted !== TRUE)
         {
-            $this->_database->where($this->soft_delete_key, (bool)$this->_temporary_only_deleted);
+            $this->database->where($this->soft_delete_key, (bool)$this->_temporary_only_deleted);
         }
 		
 		$this->_set_where($where);
 
         $this->trigger('before_get');
 
-        $row = $this->_database->get($this->_table)
+        $row = $this->database->get($this->table)
                         ->{$this->_return_type()}();
         $this->_temporary_return_type = $this->return_type;
 
@@ -179,10 +206,10 @@ class MY_Model extends CI_Model
     {
         if ($this->soft_delete && $this->_temporary_with_deleted !== TRUE)
         {
-            $this->_database->where($this->soft_delete_key, (bool)$this->_temporary_only_deleted);
+            $this->database->where($this->soft_delete_key, (bool)$this->_temporary_only_deleted);
         }
 
-        $this->_database->where_in($this->primary_key, $values);
+        $this->database->where_in($this->primary_key, $values);
 
         return $this->get_all();
     }
@@ -196,7 +223,7 @@ class MY_Model extends CI_Model
 
         if ($this->soft_delete && $this->_temporary_with_deleted !== TRUE)
         {
-            $this->_database->where($this->soft_delete_key, (bool)$this->_temporary_only_deleted);
+            $this->database->where($this->soft_delete_key, (bool)$this->_temporary_only_deleted);
         }
 
         $this->_set_where($where);
@@ -206,7 +233,7 @@ class MY_Model extends CI_Model
 
     /**
      * Fetch all the records in the table. Can be used as a generic call
-     * to $this->_database->get() with scoped methods.
+     * to $this->database->get() with scoped methods.
      */
     public function get_all()
     {
@@ -214,10 +241,10 @@ class MY_Model extends CI_Model
         
         if ($this->soft_delete && $this->_temporary_with_deleted !== TRUE)
         {
-            $this->_database->where($this->soft_delete_key, (bool)$this->_temporary_only_deleted);
+            $this->database->where($this->soft_delete_key, (bool)$this->_temporary_only_deleted);
         }
         
-        $result = $this->_database->get($this->_table)
+        $result = $this->database->get($this->table)
                            ->{$this->_return_type(1)}();
         $this->_temporary_return_type = $this->return_type;
 
@@ -245,8 +272,8 @@ class MY_Model extends CI_Model
         {
             $data = $this->trigger('before_create', $data);
 
-            $this->_database->insert($this->_table, $data);
-            $insert_id = $this->_database->insert_id();
+            $this->database->insert($this->table, $data);
+            $insert_id = $this->database->insert_id();
 
             $this->trigger('after_create', $insert_id);
 
@@ -287,9 +314,9 @@ class MY_Model extends CI_Model
 
         if ($data !== FALSE)
         {
-            $result = $this->_database->where($this->primary_key, $primary_value)
+            $result = $this->database->where($this->primary_key, $primary_value)
                                ->set($data)
-                               ->update($this->_table);
+                               ->update($this->table);
 
             $this->trigger('after_update', array($data, $result));
 
@@ -315,9 +342,9 @@ class MY_Model extends CI_Model
 
         if ($data !== FALSE)
         {
-            $result = $this->_database->where_in($this->primary_key, $primary_values)
+            $result = $this->database->where_in($this->primary_key, $primary_values)
                                ->set($data)
-                               ->update($this->_table);
+                               ->update($this->table);
 
             $this->trigger('after_update', array($data, $result));
 
@@ -342,8 +369,8 @@ class MY_Model extends CI_Model
         if ($this->validate($data) !== FALSE)
         {
             $this->_set_where($args);
-            $result = $this->_database->set($data)
-                               ->update($this->_table);
+            $result = $this->database->set($data)
+                               ->update($this->table);
             $this->trigger('after_update', array($data, $result));
 
             return $result;
@@ -360,8 +387,8 @@ class MY_Model extends CI_Model
     public function update_all($data)
     {
         $data = $this->trigger('before_update', $data);
-        $result = $this->_database->set($data)
-                           ->update($this->_table);
+        $result = $this->database->set($data)
+                           ->update($this->table);
         $this->trigger('after_update', array($data, $result));
 
         return $result;
@@ -374,15 +401,15 @@ class MY_Model extends CI_Model
     {
         $this->trigger('before_delete', $id);
 
-        $this->_database->where($this->primary_key, $id);
+        $this->database->where($this->primary_key, $id);
 
         if ($this->soft_delete)
         {
-            $result = $this->_database->update($this->_table, array( $this->soft_delete_key => TRUE ));
+            $result = $this->database->update($this->table, array( $this->soft_delete_key => TRUE ));
         }
         else
         {
-            $result = $this->_database->delete($this->_table);
+            $result = $this->database->delete($this->table);
         }
 
         $this->trigger('after_delete', $result);
@@ -404,11 +431,11 @@ class MY_Model extends CI_Model
 
         if ($this->soft_delete)
         {
-            $result = $this->_database->update($this->_table, array( $this->soft_delete_key => TRUE ));
+            $result = $this->database->update($this->table, array( $this->soft_delete_key => TRUE ));
         }
         else
         {
-            $result = $this->_database->delete($this->_table);
+            $result = $this->database->delete($this->table);
         }
 
         $this->trigger('after_delete', $result);
@@ -423,15 +450,15 @@ class MY_Model extends CI_Model
     {
         $primary_values = $this->trigger('before_delete', $primary_values);
 
-        $this->_database->where_in($this->primary_key, $primary_values);
+        $this->database->where_in($this->primary_key, $primary_values);
 
         if ($this->soft_delete)
         {
-            $result = $this->_database->update($this->_table, array( $this->soft_delete_key => TRUE ));
+            $result = $this->database->update($this->table, array( $this->soft_delete_key => TRUE ));
         }
         else
         {
-            $result = $this->_database->delete($this->_table);
+            $result = $this->database->delete($this->table);
         }
 
         $this->trigger('after_delete', $result);
@@ -445,7 +472,7 @@ class MY_Model extends CI_Model
      */
     public function truncate()
     {
-        $result = $this->_database->truncate($this->_table);
+        $result = $this->database->truncate($this->table);
 
         return $result;
     }
@@ -517,7 +544,7 @@ class MY_Model extends CI_Model
                 $options = $value;
             }
 
-			$default_options = array('foreign_key' => singular($this->_table) . '_id', 'model' => $this->_model_name(singular($relationship)));
+			$default_options = array('foreign_key' => singular($this->table) . '_id', 'model' => $this->_model_name(singular($relationship)));
 			$options = array_merge($default_options, $options);
 
             if (in_array($relationship, $this->_with))
@@ -563,11 +590,11 @@ class MY_Model extends CI_Model
 
         if ($this->soft_delete && $this->_temporary_with_deleted !== TRUE)
         {
-            $this->_database->where($this->soft_delete_key, FALSE);
+            $this->database->where($this->soft_delete_key, FALSE);
         }
 
-        $result = $this->_database->select(array($key, $value))
-                           ->get($this->_table)
+        $result = $this->database->select(array($key, $value))
+                           ->get($this->table)
                            ->result();
 
         $options = array();
@@ -590,7 +617,7 @@ class MY_Model extends CI_Model
         $where = func_get_args();
         $this->_set_where($where);
 
-        return $this->_database->count_all_results($this->_table);
+        return $this->database->count_all_results($this->table);
     }
 
     /**
@@ -598,7 +625,7 @@ class MY_Model extends CI_Model
      */
     public function count_all()
     {
-        return $this->_database->count_all($this->_table);
+        return $this->database->count_all($this->table);
     }
 
     /**
@@ -623,10 +650,10 @@ class MY_Model extends CI_Model
      */
     public function get_next_id()
     {
-        return (int) $this->_database->select('AUTO_INCREMENT')
+        return (int) $this->database->select('AUTO_INCREMENT')
             ->from('information_schema.TABLES')
-            ->where('TABLE_NAME', $this->_table)
-            ->where('TABLE_SCHEMA', $this->_database->database)->get()->row()->AUTO_INCREMENT;
+            ->where('TABLE_NAME', $this->table)
+            ->where('TABLE_SCHEMA', $this->database->database)->get()->row()->AUTO_INCREMENT;
     }
 
     /**
@@ -634,7 +661,7 @@ class MY_Model extends CI_Model
      */
     public function table()
     {
-        return $this->_table;
+        return $this->table;
     }
 
     /* --------------------------------------------------------------
@@ -768,7 +795,7 @@ class MY_Model extends CI_Model
      * ------------------------------------------------------------ */
 
     /**
-     * A wrapper to $this->_database->order_by()
+     * A wrapper to $this->database->order_by()
      */
     public function order_by($criteria, $order = 'ASC')
     {
@@ -776,22 +803,22 @@ class MY_Model extends CI_Model
         {
             foreach ($criteria as $key => $value)
             {
-                $this->_database->order_by($key, $value);
+                $this->database->order_by($key, $value);
             }
         }
         else
         {
-            $this->_database->order_by($criteria, $order);
+            $this->database->order_by($criteria, $order);
         }
         return $this;
     }
 
     /**
-     * A wrapper to $this->_database->limit()
+     * A wrapper to $this->database->limit()
      */
     public function limit($limit, $offset = 0)
     {
-        $this->_database->limit($limit, $offset);
+        $this->database->limit($limit, $offset);
         return $this;
     }
 
@@ -880,7 +907,7 @@ class MY_Model extends CI_Model
      */
     private function _fetch_table()
     {
-        if ($this->_table == NULL)
+        if ($this->table == NULL)
         {
 			$regex = '/^'.str_replace('%', '(?P<name>.+)', $this->model_string).'$/';
 			$model_name = get_class($this);
@@ -893,7 +920,7 @@ class MY_Model extends CI_Model
 				$table_name = $model_name;
 			}
 
-			$this->_table = plural(strtolower($table_name));
+			$this->table = plural(strtolower($table_name));
         }
     }
 
@@ -904,19 +931,19 @@ class MY_Model extends CI_Model
     {
         if (count($params) == 1)
         {
-            $this->_database->where($params[0]);
+            $this->database->where($params[0]);
         }
     	else if(count($params) == 2)
 		{
-			$this->_database->where($params[0], $params[1]);
+			$this->database->where($params[0], $params[1]);
 		}
 		else if(count($params) == 3)
 		{
-			$this->_database->where($params[0], $params[1], $params[2]);
+			$this->database->where($params[0], $params[1], $params[2]);
 		}
         else
         {
-            $this->_database->where($params);
+            $this->database->where($params);
         }
     }
 
