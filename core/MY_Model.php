@@ -123,10 +123,11 @@ class MY_Model extends CI_Model
 
 		if ($this->db_group)
 		{
-			//when loaded another db_group, the original connection will broke
-			//see http://stackoverflow.com/questions/634291/codeigniter-using-multiple-databases
 			
 			/*
+			see http://stackoverflow.com/questions/634291/codeigniter-using-multiple-databases
+
+			when loaded another db_group, the original connection will broke
 			To fix the problem change the simple_query function in /system/database/DB_driver.php:
 
 			function simple_query($sql)

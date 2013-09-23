@@ -45,17 +45,13 @@ For instance:
 
     class Post_model extends MY_Model { }
 
-...will guess a table name of `posts`. It also works with `_m`:
+...will guess a table name of `posts`. 
 
-    class Book_m extends MY_Model { }
-
-...will guess `books`.
-
-If you need to set it to something else, you can declare the _$\_table_ instance variable and set it to the table name:
+If you need to set it to something else, you can declare the _$table_ instance variable and set it to the table name:
 
     class Post_model extends MY_Model
     {
-        public $_table = 'blogposts';
+        public $table = 'blogposts';
     }
 
 Some of the CRUD functions also assume that your primary key ID column is called _'id'_. You can overwrite this functionality by setting the _$primary\_key_ instance variable:
@@ -313,16 +309,17 @@ The timestamps (MySQL compatible) `created_at` and `updated_at` are now availabl
 Database Connection
 -------------------
 
-The class will automatically use the default database connection, and even load it for you if you haven't yet.
 
-You can specify a database connection on a per-model basis by declaring the _$\_db\_group_ instance variable. This is equivalent to calling `$this->db->database($this->_db_group, TRUE)`.
+**ATTENTION**: [Multi Connection Bug in Codeigniter](http://stackoverflow.com/questions/634291/codeigniter-using-multiple-databases)
+
+You can specify a database connection on a per-model basis by declaring the _$db\_group_ instance variable. This is equivalent to calling `$this->db->database($this->db_group, TRUE)`.
 
 See ["Connecting to your Database"](http://ellislab.com/codeigniter/user-guide/database/connecting.html) for more information.
 
 ```php
 class Post_model extends MY_Model
 {
-    public $_db_group = 'group_name';
+    public $db_group = 'group_name';
 }
 ```
 
