@@ -127,22 +127,13 @@ class MY_Model extends CI_Model
 			/*
 			see http://stackoverflow.com/questions/634291/codeigniter-using-multiple-databases
 
-			when loaded another db_group, the original connection will broke
-			To fix the problem change the simple_query function in /system/database/DB_driver.php:
+			when loaded another db_group, the original connection will break;
 
-			function simple_query($sql)
-			{
-				if ( ! $this->conn_id)
-				{
-					$this->initialize();
-				}
-
-				$this->db_select(); //<-----------------  Added this line
-				return $this->_execute($sql);
-			}
+			solution:
+			if you use mysql driver, set pconnect to false, or use the pdo driver
 			*/
 
-			$this->database = DB($this->db_group);
+			$this->database = $this->load->database($this->db_group, true);
 		}
 		else
 		{

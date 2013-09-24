@@ -208,7 +208,7 @@ The related data will be embedded in the returned value from `get`:
 
 Separate queries will be run to select the data, so where performance is important, a separate JOIN and SELECT call is recommended.
 
-The primary key can also be configured. For _belongs\_to_ calls, the related key is on the current object, not the foreign one. Pseudocode:
+The foreign key can also be configured. For _belongs\_to_ calls, the related key is on the current object, not the foreign one. Pseudocode:
 
     SELECT * FROM authors WHERE id = $post->author_id
 
@@ -216,7 +216,7 @@ The primary key can also be configured. For _belongs\_to_ calls, the related key
 
     SELECT * FROM comments WHERE post_id = $post->id
 
-To change this, use the `primary_key` value when configuring:
+To change this, use the `foreign_key` value when configuring:
 
     class Post_model extends MY_Model
     {
