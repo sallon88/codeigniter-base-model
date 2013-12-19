@@ -40,8 +40,6 @@ class MY_Model extends CI_Model
      */
     protected $model_string = '%_model';
 
-	protected $record_timestamps = TRUE;
-
     /**
      * Support for soft deletes and this model's 'deleted' key
      */
@@ -76,6 +74,7 @@ class MY_Model extends CI_Model
      */
     protected $belongs_to = array();
     protected $has_many = array();
+	protected $has_one = array();
 
     protected $_with = array();
 
@@ -90,13 +89,6 @@ class MY_Model extends CI_Model
      * skip_validation() to skip data validation for any future calls.
      */
     protected $skip_validation = FALSE;
-
-    /**
-     * By default we return our results as objects. If we need to override
-     * this, we can, or, we could use the `as_array()` and `as_object()` scopes.
-     */
-    protected $return_type = 'object';
-    protected $_temporary_return_type = NULL;
 
     /* --------------------------------------------------------------
      * GENERIC METHODS
@@ -142,14 +134,6 @@ class MY_Model extends CI_Model
 
         array_unshift($this->before_create, 'protect_attributes');
         array_unshift($this->before_update, 'protect_attributes');
-
-		if ($this->record_timestamps)
-		{
-			array_push($this->before_create, 'created_at', 'updated_at');
-			array_push($this->before_update, 'updated_at');
-		}
-
-        $this->_temporary_return_type = $this->return_type;
     }
 
     /* --------------------------------------------------------------
@@ -157,7 +141,7 @@ class MY_Model extends CI_Model
      * ------------------------------------------------------------ */
 
     /**
-     * Fetch a single record based on the primary key. Returns an object.
+     * Fetch a single record based on the primary key. 
      */
     public function get($primary_value)
     {
@@ -178,14 +162,12 @@ class MY_Model extends CI_Model
         }
 		
 		$this->_set_where($where);
-
         $this->trigger('before_get');
 
-        $row = $this->database->get($this->table)
-                        ->{$this->_return_type()}();
-        $this->_temporary_return_type = $this->return_type;
-
-        $row = $this->trigger('after_get', $row);
+        if ($row = $this->database->limit(1)->get($this->table)->row_array())
+		{
+			$row = $this->trigger('after_get', $row);
+		}
 
         $this->_with = array();
         return $row;
@@ -236,13 +218,11 @@ class MY_Model extends CI_Model
             $this->database->where($this->soft_delete_key, (bool)$this->_temporary_only_deleted);
         }
         
-        $result = $this->database->get($this->table)
-                           ->{$this->_return_type(1)}();
-        $this->_temporary_return_type = $this->return_type;
+        $result = $this->database->get($this->table)->result_array();
 
         foreach ($result as $key => &$row)
         {
-            $row = $this->trigger('after_get', $row, ($key == count($result) - 1));
+            $row = $this->trigger('after_get', $row);
         }
 
         $this->_with = array();
@@ -257,19 +237,21 @@ class MY_Model extends CI_Model
     {
         if ($skip_validation === FALSE)
         {
-            $data = $this->validate($data);
+            $data = $this->validate($data, FALSE);
         }
 
         if ($data !== FALSE)
         {
             $data = $this->trigger('before_create', $data);
 
-            $this->database->insert($this->table, $data);
-            $insert_id = $this->database->insert_id();
+            if ($this->database->insert($this->table, $data))
+			{
+				$insert_id = $this->database->insert_id();
 
-            $this->trigger('after_create', $insert_id);
+				$this->trigger('after_create', $data, $insert_id);
 
-            return $insert_id;
+				return $insert_id;
+			}
         }
         else
         {
@@ -295,7 +277,7 @@ class MY_Model extends CI_Model
     /**
      * Updated a record based on the primary value.
      */
-    public function update($primary_value, $data, $skip_validation = FALSE)
+    public function update($primary_value, $data = array(), $skip_validation = FALSE)
     {
         $data = $this->trigger('before_update', $data);
 
@@ -310,7 +292,10 @@ class MY_Model extends CI_Model
                                ->set($data)
                                ->update($this->table);
 
-            $this->trigger('after_update', array($data, $result));
+			if ($result)
+			{
+				$this->trigger('after_update', $data);
+			}
 
             return $result;
         }
@@ -323,7 +308,7 @@ class MY_Model extends CI_Model
     /**
      * Update many records, based on an array of primary values.
      */
-    public function update_many($primary_values, $data, $skip_validation = FALSE)
+    public function update_many($primary_values, $data = array(), $skip_validation = FALSE)
     {
         $data = $this->trigger('before_update', $data);
 
@@ -338,7 +323,10 @@ class MY_Model extends CI_Model
                                ->set($data)
                                ->update($this->table);
 
-            $this->trigger('after_update', array($data, $result));
+			if ($result)
+			{
+				$this->trigger('after_update', $data);
+			}
 
             return $result;
         }
@@ -363,7 +351,10 @@ class MY_Model extends CI_Model
             $this->_set_where($args);
             $result = $this->database->set($data)
                                ->update($this->table);
-            $this->trigger('after_update', array($data, $result));
+			if ($result)
+			{
+				$this->trigger('after_update', $data);
+			}
 
             return $result;
         }
@@ -381,7 +372,11 @@ class MY_Model extends CI_Model
         $data = $this->trigger('before_update', $data);
         $result = $this->database->set($data)
                            ->update($this->table);
-        $this->trigger('after_update', array($data, $result));
+
+		if ($result)
+		{
+			$this->trigger('after_update', $data);
+		}
 
         return $result;
     }
@@ -475,7 +470,9 @@ class MY_Model extends CI_Model
 
     public function with($relationship)
     {
-        $this->_with[] = $relationship;
+		$parameters = func_get_args();
+		array_shift($parameters);
+        $this->_with[$relationship] = $parameters;
 
         if (!in_array('relate', $this->after_get))
         {
@@ -491,71 +488,104 @@ class MY_Model extends CI_Model
         {
 		    return $row;
         }
+
+		foreach($this->_with as $relationship => $parameters)
+		{
+			if (isset($this->belongs_to[$relationship]) OR in_array($relationship, $this->belongs_to))
+			{
+				$row = $this->relate_belongs_to($row, $relationship, $parameters);
+				continue;
+			}
+
+			if (isset($this->has_many[$relationship]) OR in_array($relationship, $this->has_many))
+			{
+				$row = $this->relate_has_many($row, $relationship, $parameters);
+				continue;
+			}
+
+			if (isset($this->has_one[$relationship]) OR in_array($relationship, $this->has_one))
+			{
+				$row = $this->relate_has_one($row, $relationship, $parameters);
+				continue;
+			}
+
+			//自定义with
+			$callback_with = array($this, "with_$relationship");
+			if (is_callable($callback_with))
+			{
+				array_unshift($parameters, $row);
+				$row = call_user_func_array($callback_with, $parameters);
+			}
+		}
+
+		return $row;
+	}
+
+	//with('relation_name', 'field1, field2');
+	public function relate_belongs_to($row, $relationship, $parameters)
+	{
+		$default_options = array('foreign_key' => $relationship . '_id', 'model' => $this->_model_name($relationship));
+
+		$options = isset($this->belongs_to[$relationship]) ? $this->belongs_to[$relationship] : array();
+		$options = array_merge($default_options, $options);
+
+		$this->load->model($options['model']);
+
+		if (isset($parameters[0]))
+		{
+			$this->{$options['model']}->field($parameters[0]);
+		}
+
+		$row[$relationship] = $this->{$options['model']}->get($row[$options['foreign_key']]);
+		return $row;
+	}
+
+	//with('relation_name', 'field1, field2', 'limit, offset', 'order_by');
+	public function relate_has_many($row, $relationship, $parameters)
+	{
+		$default_options = array('foreign_key' => singular($this->table) . '_id', 'model' => $this->_model_name(singular($relationship)));
+		$options = isset($this->has_many[$relationship]) ? $this->has_many[$relationship] : array();
+		$options = array_merge($default_options, $options);
+
+		$this->load->model($options['model']);
+
+		if (isset($parameters[0]))
+		{
+			$this->{$options['model']}->field($parameters[0]);
+		}
+
+		if (isset($parameters[1]))
+		{
+			call_user_func_array(array($this->{$options['model']}, 'limit'), explode(',', $parameters[1]));
+		}
+
+		if (isset($parameters[2]))
+		{
+			$this->{$options['model']}->order_by($parameters[2]);
+		}
+
+		$row[$relationship] = $this->{$options['model']}->get_many_by($options['foreign_key'], $row[$this->primary_key]);
+		return $row;
+	}
+
+	//with('relation_name', 'field1, field2');
+	public function relate_has_one($row, $relationship, $parameters)
+	{
+		$default_options = array('foreign_key' => singular($this->table) . '_id', 'model' => $this->_model_name($relationship));
+		$options = isset($this->has_one[$relationship]) ? $this->has_one[$relationship] : array();
+		$options = array_merge($default_options, $options);
+
+		$this->load->model($options['model']);
+
+		if (isset($parameters[0]))
+		{
+			$this->{$options['model']}->field($parameters[0]);
+		}
+
+		$row[$relationship] = $this->{$options['model']}->get_by($options['foreign_key'], $row[$this->primary_key]);
+		return $row;
+	}
 		
-        foreach ($this->belongs_to as $key => $value)
-        {
-            if (is_string($value))
-            {
-                $relationship = $value;
-                $options = array();
-            }
-            else
-            {
-                $relationship = $key;
-                $options = $value;
-            }
-
-			$default_options = array('foreign_key' => $relationship . '_id', 'model' => $this->_model_name($relationship));
-			$options = array_merge($default_options, $options);
-
-            if (in_array($relationship, $this->_with))
-            {
-                $this->load->model($options['model']);
-
-                if (is_object($row))
-                {
-                    $row->{$relationship} = $this->{$options['model']}->get($row->{$options['foreign_key']});
-                }
-                else
-                {
-                    $row[$relationship] = $this->{$options['model']}->get($row[$options['foreign_key']]);
-                }
-            }
-        }
-
-        foreach ($this->has_many as $key => $value)
-        {
-            if (is_string($value))
-            {
-                $relationship = $value;
-                $options = array();
-            }
-            else
-            {
-                $relationship = $key;
-                $options = $value;
-            }
-
-			$default_options = array('foreign_key' => singular($this->table) . '_id', 'model' => $this->_model_name(singular($relationship)));
-			$options = array_merge($default_options, $options);
-
-            if (in_array($relationship, $this->_with))
-            {
-                $this->load->model($options['model']);
-
-                if (is_object($row))
-                {
-                    $row->{$relationship} = $this->{$options['model']}->get_many_by($options['foreign_key'], $row->{$this->primary_key});
-                }
-                else
-                {
-                    $row[$relationship] = $this->{$options['model']}->get_many_by($options['foreign_key'], $row[$this->primary_key]);
-                }
-            }
-        }
-
-        return $row;
-    }
 
     /* --------------------------------------------------------------
      * UTILITY METHODS
@@ -661,24 +691,6 @@ class MY_Model extends CI_Model
      * ------------------------------------------------------------ */
 
     /**
-     * Return the next call as an array rather than an object
-     */
-    public function as_array()
-    {
-        $this->_temporary_return_type = 'array';
-        return $this;
-    }
-
-    /**
-     * Return the next call as an object rather than an array
-     */
-    public function as_object()
-    {
-        $this->_temporary_return_type = 'object';
-        return $this;
-    }
-
-    /**
      * Don't care about soft deleted rows on the next call
      */
     public function with_deleted()
@@ -703,30 +715,16 @@ class MY_Model extends CI_Model
     /**
      * MySQL DATETIME created_at and updated_at
      */
-    public function created_at($row)
+    protected function created_at($row)
     {
-        if (is_object($row))
-        {
-            $row->created_at = time();
-        }
-        else
-        {
-            $row['created_at'] = time();
-        }
+		$row['created_at'] = date('Y-m-d H:i:s');
 
         return $row;
     }
 
-    public function updated_at($row)
+    protected function updated_at($row)
     {
-        if (is_object($row))
-        {
-            $row->updated_at = time();
-        }
-        else
-        {
-            $row['updated_at'] = time();
-        }
+		$row['updated_at'] = date('Y-m-d H:i:s');
 
         return $row;
     }
@@ -735,48 +733,80 @@ class MY_Model extends CI_Model
      * Serialises data for you automatically, allowing you to pass
      * through objects and let it handle the serialisation in the background
      */
-    public function serialize($row)
+    protected function serialize($row)
     {
         foreach ($this->callback_parameters as $column)
         {
-            $row[$column] = serialize($row[$column]);
+			if (isset($row[$column]))
+			{
+				$row[$column] = serialize($row[$column]);
+			}
         }
 
         return $row;
     }
 
-    public function unserialize($row)
+    protected function unserialize($row)
     {
         foreach ($this->callback_parameters as $column)
         {
-            if (is_array($row))
-            {
-                $row[$column] = unserialize($row[$column]);
-            }
-            else
-            {
-                $row->$column = unserialize($row->$column);
-            }
+			if (isset($row[$column]))
+			{
+				$row[$column] = unserialize($row[$column]);
+			}
         }
 
         return $row;
     }
+
+    protected function json_encode($row)
+    {
+        foreach ($this->callback_parameters as $column)
+        {
+			if (isset($row[$column]))
+			{
+				$row[$column] = json_encode($row[$column]);
+			}
+        }
+
+        return $row;
+    }
+
+    protected function json_decode($row)
+    {
+        foreach ($this->callback_parameters as $column)
+        {
+			if (isset($row[$column]))
+			{
+				$row[$column] = json_decode($row[$column], true);
+			}
+        }
+
+        return $row;
+    }
+
+	protected function markdown_parse($row)
+	{
+		foreach($this->callback_parameters as $column)
+		{
+			if (isset($row[$column]))
+			{
+				$row[$column . '_markdown'] = $row[$column];
+				$row[$column] = Markdown::parse($row[$column]);
+			}
+		}
+
+		return $row;
+	}
 
     /**
      * Protect attributes by removing them from $row array
      */
-    public function protect_attributes($row)
+    protected function protect_attributes($row)
     {
         foreach ($this->protected_attributes as $attr)
         {
-            if (is_object($row))
-            {
-                unset($row->$attr);
-            }
-            else
-            {
-                unset($row[$attr]);
-            }
+			unset($row[$attr]);
         }
 
         return $row;
@@ -814,6 +844,12 @@ class MY_Model extends CI_Model
         return $this;
     }
 
+	public function field($field, $protect_field = TRUE)
+	{
+		$this->database->select($field, $protect_field);
+		return $this;
+	}
+
     /* --------------------------------------------------------------
      * INTERNAL METHODS
      * ------------------------------------------------------------ */
@@ -823,8 +859,9 @@ class MY_Model extends CI_Model
      * (which looks for an instance variable $this->event_name), an array of
      * parameters to pass through and an optional 'last in interation' boolean
      */
-    public function trigger($event, $data = FALSE, $last = TRUE)
+    public function trigger($event, $data = FALSE)
     {
+		$args = array_slice(func_get_args(), 2);
         if (isset($this->$event) && is_array($this->$event))
         {
             foreach ($this->$event as $method)
@@ -834,64 +871,64 @@ class MY_Model extends CI_Model
                     preg_match('/([a-zA-Z0-9\_\-]+)(\(([a-zA-Z0-9\_\-\., ]+)\))?/', $method, $matches);
 
                     $method = $matches[1];
-                    $this->callback_parameters = explode(',', $matches[3]);
+                    $this->callback_parameters = array_map('trim', explode(',', $matches[3]));
                 }
 
-                $data = call_user_func_array(array($this, $method), array($data, $last));
+				//使用临时变量$_args以防止原始$args被修改
+				$_args = $args;
+				array_unshift($_args, $data);
+                $data = call_user_func_array(array($this, $method), $_args);
             }
         }
 
-        return $data;
+		return $data;
     }
 
     /**
      * Run validation on the passed data
      */
-    public function validate($data)
+    public function validate($data, $update = true)
     {
         if($this->skip_validation)
         {
             return $data;
         }
+
+		// 当为更新时,需要去除掉不存在data中的规则
+		$validates = $this->validates;
+		if ($update)
+		{
+			foreach($validates as $key => $validate)
+			{
+				if ( ! array_key_exists($validate['field'], $data))
+				{
+					unset($validates[$key]);
+				}
+			}
+		}
         
-        if(!empty($this->validates))
+        if(!empty($validates))
         {
-            foreach($data as $key => $val)
-            {
-                $_POST[$key] = $val;
-            }
+			//缓存原post数据
+			$post_data = $_POST;
+			$_POST =& $data;
 
-            $this->load->library('form_validation');
+			$this->load->library('form_validation');
 
-            if(is_array($this->validates))
-            {
-                $this->form_validation->set_rules($this->validates);
+			//清楚可能存在的，上次运行validation的信息
+			$this->form_validation->clear_last_info();
+			$this->form_validation->set_rules($validates);
 
-                if ($this->form_validation->run() === TRUE)
-                {
-                    return $data;
-                }
-                else
-                {
-                    return FALSE;
-                }
-            }
-            else
-            {
-                if ($this->form_validation->run($this->validates) === TRUE)
-                {
-                    return $data;
-                }
-                else
-                {
-                    return FALSE;
-                }
-            }
-        }
-        else
-        {
-            return $data;
-        }
+			if ($this->form_validation->run() === FALSE)
+			{
+				$data = FALSE;
+			}
+
+			//恢复原post数据
+			$_POST =& $post_data;
+		}
+
+		return $data;
     }
 
     /**
@@ -937,15 +974,6 @@ class MY_Model extends CI_Model
         {
             $this->database->where($params);
         }
-    }
-
-    /**
-     * Return the method name for the current return type
-     */
-    protected function _return_type($multi = FALSE)
-    {
-        $method = ($multi) ? 'result' : 'row';
-        return $this->_temporary_return_type == 'array' ? $method . '_array' : $method;
     }
 
     /**
