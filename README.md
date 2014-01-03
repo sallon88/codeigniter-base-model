@@ -51,7 +51,7 @@ If you need to set it to something else, you can declare the _$table_ instance v
 
     class Post_model extends MY_Model
     {
-        public $table = 'blogposts';
+        public $table_name = 'blogposts';
     }
 
 Some of the CRUD functions also assume that your primary key ID column is called _'id'_. You can overwrite this functionality by setting the _$primary\_key_ instance variable:
@@ -224,24 +224,6 @@ To change this, use the `foreign_key` value when configuring:
         public $has_many = array( 'comments' => array( 'foreign_key' => 'parent_post_id' ) );
     }
 
-Arrays vs Objects
------------------
-
-By default, MY_Model is setup to return objects using CodeIgniter's QB's `row()` and `result()` methods. If you'd like to use their array counterparts, there are a couple of ways of customising the model.
-
-If you'd like all your calls to use the array methods, you can set the `$return_type` variable to `array`.
-
-    class Book_model extends MY_Model
-    {
-        protected $return_type = 'array';
-    }
-
-If you'd like just your _next_ call to return a specific type, there are two scoping methods you can use:
-
-    $this->book_model->as_array()
-                     ->get(1);
-    $this->book_model->as_object()
-                     ->get_by('column', 'value');
 
 Soft Delete
 -----------
