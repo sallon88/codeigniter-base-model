@@ -10,9 +10,7 @@
 class MY_Model extends CI_Model
 {
 
-    /* --------------------------------------------------------------
-     * VARIABLES
-     * ------------------------------------------------------------ */
+	//{{{ VARIABLES
 
     /**
      * This model's default database table. Automatically
@@ -85,10 +83,9 @@ class MY_Model extends CI_Model
      * as validation rules passed to the Form_validation library.
      */
     protected $validates = array();
+	//}}}
 
-    /* --------------------------------------------------------------
-     * GENERIC METHODS
-     * ------------------------------------------------------------ */
+	// {{{ GENERIC METHODS
 
     /**
      * Initialise the model, tie into the CodeIgniter superobject and
@@ -169,6 +166,29 @@ class MY_Model extends CI_Model
         return $row;
     }
 
+	public function get_field($primary_key, $field = null)
+	{
+		if (isset($this->_row_cache[$primary_key]))
+		{
+			$row = $this->_row_cache[$primary_key];
+		}
+		else
+		{
+			$row = $this->get($primary_key);
+			if ($row)
+			{
+				$this->_row_cache[$primary_key] = $row;
+			}
+		}
+
+		if ( ! isset($field))
+		{
+			return $row;
+		}
+
+		return isset($row[$field]) ? $row[$field] : '';
+	}
+
     /**
      * Fetch an array of records based on an array of primary values.
      */
@@ -196,6 +216,8 @@ class MY_Model extends CI_Model
         $this->trigger('before_get');
         
         $result = $this->database->get($this->table_name)->result_array();
+
+		$result = $this->batch_relate($result);
 
         foreach ($result as $key => &$row)
         {
@@ -319,10 +341,6 @@ class MY_Model extends CI_Model
         return $this->database->truncate($this->table_name);
     }
 
-    /* --------------------------------------------------------------
-     * RELATIONSHIPS
-     * ------------------------------------------------------------ */
-
     public function with($relationship)
     {
 		$parameters = func_get_args();
@@ -336,122 +354,9 @@ class MY_Model extends CI_Model
 
         return $this;
     }
+	//}}}
 
-    public function relate($row)
-    {
-		if (empty($row))
-        {
-		    return $row;
-        }
-
-		foreach($this->_with as $relationship => $parameters)
-		{
-			if (isset($this->belongs_to[$relationship]) OR in_array($relationship, $this->belongs_to))
-			{
-				$row = $this->relate_belongs_to($row, $relationship, $parameters);
-				continue;
-			}
-
-			if (isset($this->has_many[$relationship]) OR in_array($relationship, $this->has_many))
-			{
-				$row = $this->relate_has_many($row, $relationship, $parameters);
-				continue;
-			}
-
-			if (isset($this->has_one[$relationship]) OR in_array($relationship, $this->has_one))
-			{
-				$row = $this->relate_has_one($row, $relationship, $parameters);
-				continue;
-			}
-
-			//自定义with
-			$callback_with = array($this, "with_$relationship");
-			if (is_callable($callback_with))
-			{
-				array_unshift($parameters, $row);
-				$row = call_user_func_array($callback_with, $parameters);
-			}
-		}
-
-		return $row;
-	}
-
-	//with('relation_name', 'field1, field2');
-	public function relate_belongs_to($row, $relationship, $parameters)
-	{
-		$default_options = array(
-			'foreign_key' => $relationship . '_id',
-			'model' => $this->_model_name($relationship)
-		);
-
-		$options = isset($this->belongs_to[$relationship]) ? $this->belongs_to[$relationship] : array();
-		$options = array_merge($default_options, $options);
-
-		$this->load->model($options['model']);
-
-		if (isset($parameters[0]))
-		{
-			$this->{$options['model']}->field($parameters[0]);
-		}
-
-		$row[$relationship] = $this->{$options['model']}->get($row[$options['foreign_key']]);
-		return $row;
-	}
-
-	//with('relation_name', 'field1, field2', 'limit, offset', 'id desc');
-	public function relate_has_many($row, $relationship, $parameters)
-	{
-		$default_options = array(
-			'foreign_key' => singular($this->table_name) . '_id',
-			'model' => $this->_model_name(singular($relationship))
-		);
-		$options = isset($this->has_many[$relationship]) ? $this->has_many[$relationship] : array();
-		$options = array_merge($default_options, $options);
-
-		$this->load->model($options['model']);
-
-		if (isset($parameters[0]))
-		{
-			$this->{$options['model']}->field($parameters[0]);
-		}
-
-		if (isset($parameters[1]))
-		{
-			call_user_func_array(array($this->{$options['model']}, 'limit'), explode(',', $parameters[1]));
-		}
-
-		if (isset($parameters[2]))
-		{
-			$this->{$options['model']}->order_by($parameters[2]);
-		}
-
-		$row[$relationship] = $this->{$options['model']}->get_many_by($options['foreign_key'], $row[$this->primary_key]);
-		return $row;
-	}
-
-	//with('relation_name', 'field1, field2');
-	public function relate_has_one($row, $relationship, $parameters)
-	{
-		$default_options = array('foreign_key' => singular($this->table_name) . '_id', 'model' => $this->_model_name($relationship));
-		$options = isset($this->has_one[$relationship]) ? $this->has_one[$relationship] : array();
-		$options = array_merge($default_options, $options);
-
-		$this->load->model($options['model']);
-
-		if (isset($parameters[0]))
-		{
-			$this->{$options['model']}->field($parameters[0]);
-		}
-
-		$row[$relationship] = $this->{$options['model']}->get_by($options['foreign_key'], $row[$this->primary_key]);
-		return $row;
-	}
-		
-
-    /* --------------------------------------------------------------
-     * UTILITY METHODS
-     * ------------------------------------------------------------ */
-
+	//{{{ UTILITY METHODS
     /**
      * Retrieve and generate a form_dropdown friendly array
      */
@@ -515,10 +420,13 @@ class MY_Model extends CI_Model
             ->where('TABLE_SCHEMA', $this->database->database)->get()->row()->AUTO_INCREMENT;
     }
 
-    /* --------------------------------------------------------------
-     * GLOBAL SCOPES
-     * ------------------------------------------------------------ */
+	public function primary_key()
+	{
+		return $this->primary_key;
+	}
+	//}}}
 
+	//{{{ CHAINED METHODS
     /**
      * Don't care about soft deleted rows on the next call
      */
@@ -536,10 +444,6 @@ class MY_Model extends CI_Model
         $this->_temporary_only_deleted = TRUE;
         return $this;
     }
-
-    /* --------------------------------------------------------------
-     * QUERY BUILDER DIRECT ACCESS METHODS
-     * ------------------------------------------------------------ */
 
     /**
      * A wrapper to $this->database->order_by()
@@ -593,34 +497,9 @@ class MY_Model extends CI_Model
 		$this->database->where($where);
 		return $this;
 	}
+	//}}}
 
-	public function get_field($primary_key, $field = null)
-	{
-		if (isset($this->_row_cache[$primary_key]))
-		{
-			$row = $this->_row_cache[$primary_key];
-		}
-		else
-		{
-			$row = $this->get($primary_key);
-			if ($row)
-			{
-				$this->_row_cache[$primary_key] = $row;
-			}
-		}
-
-		if ( ! isset($field))
-		{
-			return $row;
-		}
-
-		return isset($row[$field]) ? $row[$field] : '';
-	}
-
-    /* --------------------------------------------------------------
-     * OBSERVERS
-     * ------------------------------------------------------------ */
-
+	//{{{ OBSERVERS
     /**
      * MySQL DATETIME created_at and updated_at
      */
@@ -738,17 +617,221 @@ class MY_Model extends CI_Model
             $this->database->where($this->soft_delete_key, (bool)$this->_temporary_only_deleted);
         }
 	}
+	//}}}
 
-    /* --------------------------------------------------------------
-     * INTERNAL METHODS
-     * ------------------------------------------------------------ */
+	//{{{ RELATIONSHIPS
+    protected function relate($row)
+    {
+		if (empty($row))
+        {
+		    return $row;
+        }
 
+		foreach($this->_with as $relationship => $parameters)
+		{
+			if (isset($this->belongs_to[$relationship]) OR in_array($relationship, $this->belongs_to))
+			{
+				$row = $this->relate_belongs_to($row, $relationship, $parameters);
+				continue;
+			}
+
+			if (isset($this->has_many[$relationship]) OR in_array($relationship, $this->has_many))
+			{
+				$row = $this->relate_has_many($row, $relationship, $parameters);
+				continue;
+			}
+
+			if (isset($this->has_one[$relationship]) OR in_array($relationship, $this->has_one))
+			{
+				$row = $this->relate_has_one($row, $relationship, $parameters);
+				continue;
+			}
+
+			//自定义with
+			$callback_with = array($this, "with_$relationship");
+			if (is_callable($callback_with))
+			{
+				array_unshift($parameters, $row);
+				$row = call_user_func_array($callback_with, $parameters);
+			}
+		}
+
+		return $row;
+	}
+
+	//solve n+1 problems
+	protected function batch_relate($result)
+	{
+		if (empty($result))
+		{
+			return $result;
+		}
+
+		foreach($this->_with as $relationship => $parameters)
+		{
+			if (isset($this->belongs_to[$relationship]) OR in_array($relationship, $this->belongs_to))
+			{
+				$result = $this->batch_relate_belongs_to($result, $relationship, $parameters);
+				unset($this->_with[$relationship]);
+				continue;
+			}
+
+			if (isset($this->has_one[$relationship]) OR in_array($relationship, $this->has_one))
+			{
+				$result = $this->batch_relate_has_one($result, $relationship, $parameters);
+				unset($this->_with[$relationship]);
+				continue;
+			}
+		}
+
+		return $result;
+	}
+
+
+	//with('relation_name', 'field1, field2');
+	protected function relate_belongs_to($row, $relationship, $parameters, $batch_relate = FALSE)
+	{
+		$default_options = array(
+			'foreign_key' => $relationship . '_id',
+			'model' => $this->_model_name($relationship)
+		);
+
+		$options = isset($this->belongs_to[$relationship]) ? $this->belongs_to[$relationship] : array();
+		$options = array_merge($default_options, $options);
+
+		$this->load->model($options['model']);
+
+		if (isset($parameters[0]))
+		{
+			$this->{$options['model']}->field($parameters[0]);
+		}
+
+		if ($batch_relate)
+		{
+			return $options;
+		}
+
+		$row[$relationship] = $this->{$options['model']}->get($row[$options['foreign_key']]);
+		return $row;
+	}
+
+	protected function batch_relate_belongs_to($result, $relationship, $parameters)
+	{
+		$options = $this->relate_belongs_to(NULL, $relationship, $parameters, TRUE);
+
+		$relation_model = $this->{$options['model']};
+		$foreign_key = $options['foreign_key'];
+
+		$foreign_ids = array_collect($result, $foreign_key);
+		$relation_result = array_associate($relation_model->get_many($foreign_ids), $relation_model->primary_key());
+
+		foreach($result as &$row)
+		{
+			if (isset($relation_result[$row[$foreign_key]]))
+			{
+				$row[$relationship] = $relation_result[$row[$foreign_key]];
+			}
+			else
+			{
+				$row[$relationship] = array();
+			}
+		}
+
+		return $result;
+	}
+
+	//with('relation_name', 'field1, field2', 'limit, offset', 'id desc');
+	protected function relate_has_many($row, $relationship, $parameters)
+	{
+		$default_options = array(
+			'foreign_key' => singular($this->table_name) . '_id',
+			'model' => $this->_model_name(singular($relationship))
+		);
+		$options = isset($this->has_many[$relationship]) ? $this->has_many[$relationship] : array();
+		$options = array_merge($default_options, $options);
+
+		$this->load->model($options['model']);
+
+		if (isset($parameters[0]))
+		{
+			$this->{$options['model']}->field($parameters[0]);
+		}
+
+		if (isset($parameters[1]))
+		{
+			call_user_func_array(array($this->{$options['model']}, 'limit'), explode(',', $parameters[1]));
+		}
+
+		if (isset($parameters[2]))
+		{
+			$this->{$options['model']}->order_by($parameters[2]);
+		}
+
+		$row[$relationship] = $this->{$options['model']}->get_many_by($options['foreign_key'], $row[$this->primary_key]);
+		return $row;
+	}
+
+	//with('relation_name', 'field1, field2');
+	protected function relate_has_one($row, $relationship, $parameters, $batch_relate = FALSE)
+	{
+		$default_options = array(
+			'foreign_key' => singular($this->table_name) . '_id', 
+			'model' => $this->_model_name($relationship)
+		);
+
+		$options = isset($this->has_one[$relationship]) ? $this->has_one[$relationship] : array();
+		$options = array_merge($default_options, $options);
+
+		$this->load->model($options['model']);
+
+		if (isset($parameters[0]))
+		{
+			$this->{$options['model']}->field($parameters[0]);
+		}
+
+		if ($batch_relate)
+		{
+			return $options;
+		}
+
+		$row[$relationship] = $this->{$options['model']}->get_by($options['foreign_key'], $row[$this->primary_key]);
+		return $row;
+	}
+
+	protected function batch_relate_has_one($result, $relationship, $parameters)
+	{
+		$options = $this->relate_has_one(NULL, $relationship, $parameters, TRUE);
+
+		$relation_model = $this->{$options['model']};
+		$foreign_key = $options['foreign_key'];
+
+		$primary_ids = array_collect($result, $this->primary_key);
+		$relation_result = array_associate($relation_model->get_many_by($foreign_key, $primary_ids), $foreign_key);
+
+		foreach($result as &$row)
+		{
+			if (isset($relation_result[$row[$this->primary_key]]))
+			{
+				$row[$relationship] = $relation_result[$row[$this->primary_key]];
+			}
+			else
+			{
+				$row[$relationship] = array();
+			}
+		}
+
+		return $result;
+	}
+	//}}}
+
+	//{{{ INTERNAL METHODS
+	
     /**
      * Trigger an event and call its observers. Pass through the event name
      * (which looks for an instance variable $this->event_name), an array of
      * parameters to pass through and an optional 'last in interation' boolean
      */
-    public function trigger($event, $data = array())
+    protected function trigger($event, $data = array())
     {
 		$args = array_slice(func_get_args(), 2);
         if (isset($this->$event) && is_array($this->$event))
@@ -781,7 +864,7 @@ class MY_Model extends CI_Model
     /**
      * Run validation on the passed data
      */
-    public function validate($data, $strict = true)
+    protected function validate($data, $strict = true)
     {
 		if ( ! is_array($data))
 		{
@@ -901,5 +984,5 @@ class MY_Model extends CI_Model
     {
         return str_replace('%', $model, $this->model_string);
     }
+	//}}}
 }
-
