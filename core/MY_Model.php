@@ -202,7 +202,8 @@ class MY_Model extends CI_Model
      */
     public function get_many_by()
     {
-        $this->_set_where(func_get_args());
+		$where = func_get_args();
+        $this->_set_where($where);
 
         return $this->get_all();
     }
@@ -450,7 +451,8 @@ class MY_Model extends CI_Model
      */
     public function order_by()
     {
-		call_user_func_array(array($this->database, 'order_by'), func_get_args());
+		$order_by = func_get_args();
+		call_user_func_array(array($this->database, 'order_by'), $order_by);
 		return $this;
     }
 
@@ -833,7 +835,8 @@ class MY_Model extends CI_Model
      */
     protected function trigger($event, $data = array())
     {
-		$args = array_slice(func_get_args(), 2);
+		$args = func_get_args();
+		$args = array_slice($args, 2);
         if (isset($this->$event) && is_array($this->$event))
         {
             foreach ($this->$event as $method)
