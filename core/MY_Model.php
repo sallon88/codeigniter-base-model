@@ -128,6 +128,7 @@ class MY_Model extends CI_Model
         array_unshift($this->before_create, 'protect_attributes', 'validate_insert');
         array_unshift($this->before_update, 'protect_attributes', 'validate_update');
 
+        array_unshift($this->before_get, 'always_select_primary_key');
 		if ($this->soft_delete)
 		{
 			array_unshift($this->before_get, 'soft_delete');
@@ -808,6 +809,13 @@ class MY_Model extends CI_Model
 		$foreign_key = $options['foreign_key'];
 
 		$primary_ids = array_collect($result, $this->primary_key);
+
+        // in case no foreign_key selected
+        if ($relation_model->database->ar_select)
+        {
+            $relation_model->database->ar_select[] = $foreign_key;
+        }
+
 		$relation_result = array_associate($relation_model->get_many_by($foreign_key, $primary_ids), $foreign_key);
 
 		foreach($result as &$row)
@@ -988,4 +996,12 @@ class MY_Model extends CI_Model
         return str_replace('%', $model, $this->model_string);
     }
 	//}}}
+
+    protected function always_select_primary_key()
+    {
+        if ($this->database->ar_select)
+        {
+            $this->database->ar_select[] = $this->primary_key;
+        }
+    }
 }
