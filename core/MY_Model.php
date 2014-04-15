@@ -995,13 +995,13 @@ class MY_Model extends CI_Model
     {
         return str_replace('%', $model, $this->model_string);
     }
-	//}}}
 
     protected function always_select_primary_key()
     {
         if ($this->database->ar_select)
         {
-            $this->database->ar_select[] = $this->primary_key;
+            $this->database->ar_select[] = $this->table_name . '.' .$this->primary_key;
         }
     }
+	//}}}
 }
